@@ -336,7 +336,7 @@ const AI_STARTERS = [
 export default function InvestmentsPage() {
   const [data, setData] = useState<MarketData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"market" | "portfolio" | "ai" | "platforms" | "calculator">("market");
+  const [tab, setTab] = useState<"market" | "portfolio" | "analysis" | "forecast" | "ai" | "platforms" | "calculator">("market");
 
   // Portfolio state
   const [investments, setInvestments] = useState<Investment[]>([]);
@@ -361,6 +361,7 @@ export default function InvestmentsPage() {
   // Forecast state
   const [forecastYears, setForecastYears] = useState<10 | 20 | 30 | 40 | 50>(20);
   const [monthlyContrib, setMonthlyContrib] = useState(5000);
+  const [extraContrib, setExtraContrib] = useState(0); // "що якщо я ще додам"
 
   // CSV import ref
   const csvRef = useRef<HTMLInputElement>(null);
@@ -594,7 +595,9 @@ export default function InvestmentsPage() {
           [
             { key: "market",     label: "🌍 Ринок" },
             { key: "portfolio",  label: "💼 Портфель" },
-            { key: "ai",         label: "🤖 AI Радник" },
+            { key: "analysis",   label: "🤖 AI Аналіз" },
+            { key: "forecast",   label: "📈 Прогноз" },
+            { key: "ai",         label: "💬 AI Радник" },
             { key: "platforms",  label: "🏦 Платформи" },
             { key: "calculator", label: "🧮 Калькулятор" },
           ] as const
@@ -1116,151 +1119,289 @@ export default function InvestmentsPage() {
             </div>
           )}
 
-          {/* AI Portfolio Analysis */}
-          {investments.length > 0 && (
+          {investments.length === 0 && (
+            <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 text-center text-sm text-violet-600">
+              Додай інвестиції — тоді стануть доступні вкладки <strong>AI Аналіз</strong> та <strong>Прогноз</strong>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── AI Analysis Tab ── */}
+      {tab === "analysis" && (
+        <div className="space-y-4">
+          {investments.length === 0 ? (
+            <div className="flex flex-col items-center py-20 gap-3 text-gray-400">
+              <span className="text-4xl">💼</span>
+              <p className="text-sm">Спочатку додай інвестиції у вкладці «Портфель»</p>
+            </div>
+          ) : (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🤖</span>
+              <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-gradient-to-r from-violet-50/60 to-pink-50/40">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xl">🤖</div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">AI Аналіз портфеля</p>
-                    <p className="text-xs text-gray-400">Рекомендації щодо покращення та прогноз доходності</p>
+                    <p className="font-semibold text-gray-900">AI Аналіз портфеля</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Портфель: {investments.reduce((s, i) => s + i.amount, 0).toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 })} · {investments.length} позицій
+                    </p>
                   </div>
                 </div>
                 <button
                   onClick={runPortfolioAnalysis}
                   disabled={analysisLoading}
-                  className="px-4 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm flex items-center gap-2"
                 >
                   {analysisLoading ? (
                     <>
                       <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Аналізую...
                     </>
-                  ) : "✨ Аналізувати"}
+                  ) : "✨ Запустити аналіз"}
                 </button>
               </div>
-              {portfolioAnalysis && (
-                <div className="p-5 text-sm text-gray-700">
-                  <Markdown content={portfolioAnalysis} />
+
+              {!portfolioAnalysis && !analysisLoading && (
+                <div className="p-8 flex flex-col items-center gap-4 text-center">
+                  <span className="text-5xl">🔮</span>
+                  <div>
+                    <p className="font-semibold text-gray-800">Готовий проаналізувати твій портфель</p>
+                    <p className="text-sm text-gray-400 mt-1 max-w-md">
+                      Claude оцінить диверсифікацію, ризики, запропонує конкретні дії та прогноз доходності
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-2">
+                    {[
+                      { emoji: "📊", label: "Оцінка диверсифікації" },
+                      { emoji: "⚠️", label: "Топ-3 ризики" },
+                      { emoji: "💡", label: "Рекомендації" },
+                      { emoji: "🎯", label: "Ідеальний розподіл" },
+                    ].map((c) => (
+                      <div key={c.label} className="bg-gray-50 rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs text-gray-600">
+                        <span>{c.emoji}</span>{c.label}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              {!portfolioAnalysis && !analysisLoading && (
-                <div className="p-5 text-center text-sm text-gray-400">
-                  Натисни «Аналізувати» — AI оцінить твій портфель і дасть персональні рекомендації
+
+              {portfolioAnalysis && (
+                <div className="p-6 text-sm text-gray-700">
+                  <Markdown content={portfolioAnalysis} />
                 </div>
               )}
             </div>
           )}
+        </div>
+      )}
 
-          {/* Portfolio Growth Forecast */}
-          {investments.length > 0 && (() => {
+      {/* ── Forecast Tab ── */}
+      {tab === "forecast" && (
+        <div className="space-y-5">
+          {investments.length === 0 ? (
+            <div className="flex flex-col items-center py-20 gap-3 text-gray-400">
+              <span className="text-4xl">📈</span>
+              <p className="text-sm">Спочатку додай інвестиції у вкладці «Портфель»</p>
+            </div>
+          ) : (() => {
+            const currentYear = new Date().getFullYear();
             const pv = investments.reduce((s, i) => s + i.amount, 0);
-            const conservative = calcForecast(pv, monthlyContrib, forecastYears, 5);
-            const moderate     = calcForecast(pv, monthlyContrib, forecastYears, 10);
-            const aggressive   = calcForecast(pv, monthlyContrib, forecastYears, 15);
-            const chartData = conservative.map((p, idx) => ({
-              year: p.year,
+            const totalPmt = monthlyContrib + extraContrib;
+
+            const conservative = calcForecast(pv, totalPmt, forecastYears, 5);
+            const moderate     = calcForecast(pv, totalPmt, forecastYears, 10);
+            const aggressive   = calcForecast(pv, totalPmt, forecastYears, 15);
+
+            const fcData = conservative.map((p, idx) => ({
+              year: currentYear + p.year,
               conservative: p.value,
               moderate: moderate[idx].value,
               aggressive: aggressive[idx].value,
             }));
-            const fmtM = (v: number) => v >= 1_000_000
-              ? `${(v / 1_000_000).toFixed(1)}M`
-              : v >= 1_000
-              ? `${(v / 1_000).toFixed(0)}k`
+
+            const fmtM = (v: number) =>
+              v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M грн`
+              : v >= 1_000   ? `${(v / 1_000).toFixed(0)}k грн`
+              : `${v} грн`;
+
+            const fmtAxis = (v: number) =>
+              v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M`
+              : v >= 1_000   ? `${(v / 1_000).toFixed(0)}k`
               : `${v}`;
 
+            const EXTRA_PRESETS = [
+              { label: "Не додавати", value: 0, note: "" },
+              { label: "+2 000 грн", value: 2000, note: "у депозит / ОВДП" },
+              { label: "+5 000 грн", value: 5000, note: "у ETF / акції" },
+              { label: "+10 000 грн", value: 10000, note: "у індексний фонд" },
+              { label: "+20 000 грн", value: 20000, note: "диверсифікований" },
+            ];
+
             return (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">📈 Прогноз зростання портфеля</p>
-                    <p className="text-xs text-gray-400 mt-0.5">3 сценарії: консервативний 5% / помірний 10% / агресивний 15% річних</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 bg-gray-50 rounded-xl px-3 py-1.5 border border-gray-200">
-                      <span className="text-xs text-gray-500">Внесок/міс:</span>
-                      <input
-                        type="number"
-                        value={monthlyContrib}
-                        onChange={(e) => setMonthlyContrib(Math.max(0, Number(e.target.value)))}
-                        className="w-20 text-xs font-semibold text-gray-800 bg-transparent outline-none text-right"
-                        step={500}
-                        min={0}
-                      />
-                      <span className="text-xs text-gray-400">грн</span>
+              <>
+                {/* Controls card */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
+                  <div className="flex items-start justify-between flex-wrap gap-4">
+                    <div>
+                      <p className="font-semibold text-gray-900">📈 Прогноз зростання портфеля</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Стартова база: <span className="font-semibold text-gray-700">{pv.toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 })}</span>
+                        {" "} · 3 сценарії: 5% / 10% / 15% річних
+                      </p>
                     </div>
+
+                    {/* Period selector with real target years */}
                     <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
                       {([10, 20, 30, 40, 50] as const).map((y) => (
                         <button
                           key={y}
                           onClick={() => setForecastYears(y)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                             forecastYears === y
                               ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
                               : "text-gray-500 hover:bg-gray-100"
                           }`}
                         >
-                          {y}р
+                          до {currentYear + y}
                         </button>
                       ))}
                     </div>
                   </div>
+
+                  {/* Monthly base contribution */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-2 block">Щомісячне поповнення (базове)</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {[0, 1000, 3000, 5000, 10000, 20000].map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => setMonthlyContrib(v)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                            monthlyContrib === v
+                              ? "bg-violet-100 border-violet-300 text-violet-700"
+                              : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          {v === 0 ? "Без поповнень" : `${(v / 1000).toFixed(0)}k грн/міс`}
+                        </button>
+                      ))}
+                      <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5">
+                        <input
+                          type="number"
+                          value={monthlyContrib}
+                          onChange={(e) => setMonthlyContrib(Math.max(0, Number(e.target.value)))}
+                          className="w-16 text-xs font-semibold text-gray-800 bg-transparent outline-none text-right"
+                          step={500} min={0}
+                        />
+                        <span className="text-xs text-gray-400">грн</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Extra "what if" contribution */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-2 block">
+                      Що якщо я ще додаю щомісяця? <span className="text-gray-400 font-normal">(де інвестувати)</span>
+                    </label>
+                    <div className="flex gap-2 flex-wrap">
+                      {EXTRA_PRESETS.map((p) => (
+                        <button
+                          key={p.value}
+                          onClick={() => setExtraContrib(p.value)}
+                          className={`flex flex-col items-start px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                            extraContrib === p.value
+                              ? "bg-pink-50 border-pink-300 text-pink-700"
+                              : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          <span>{p.label}</span>
+                          {p.note && <span className="text-gray-400 font-normal text-[10px] mt-0.5">{p.note}</span>}
+                        </button>
+                      ))}
+                    </div>
+
+                    {extraContrib > 0 && (
+                      <p className="text-xs text-pink-600 mt-2 bg-pink-50 rounded-lg px-3 py-1.5">
+                        Загальне поповнення: <strong>{(monthlyContrib + extraContrib).toLocaleString("uk-UA")} грн/міс</strong>
+                        {" "}— враховано в прогнозі нижче
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex gap-4 flex-wrap text-xs">
+                {/* Summary chips */}
+                <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: "Консервативний (5%)", color: "#10b981", val: conservative[conservative.length - 1].value },
-                    { label: "Помірний (10%)", color: "#8b5cf6", val: moderate[moderate.length - 1].value },
-                    { label: "Агресивний (15%)", color: "#f43f5e", val: aggressive[aggressive.length - 1].value },
+                    { label: `Консервативний · до ${currentYear + forecastYears}`, color: "#10b981", bg: "bg-emerald-50", border: "border-emerald-100", val: conservative[conservative.length - 1].value },
+                    { label: `Помірний · до ${currentYear + forecastYears}`, color: "#8b5cf6", bg: "bg-violet-50", border: "border-violet-100", val: moderate[moderate.length - 1].value },
+                    { label: `Агресивний · до ${currentYear + forecastYears}`, color: "#f43f5e", bg: "bg-rose-50", border: "border-rose-100", val: aggressive[aggressive.length - 1].value },
                   ].map((s) => (
-                    <div key={s.label} className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-sm" style={{ background: s.color }} />
-                      <span className="text-gray-500">{s.label}:</span>
-                      <span className="font-semibold text-gray-800">
-                        {s.val.toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 })}
-                      </span>
+                    <div key={s.label} className={`${s.bg} border ${s.border} rounded-2xl p-4`}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+                        <span className="text-xs text-gray-500">{s.label}</span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">{fmtM(s.val)}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        ×{(s.val / pv).toFixed(1)} від поточного
+                      </p>
                     </div>
                   ))}
                 </div>
 
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="gm" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                      <XAxis dataKey="year" tick={{ fontSize: 11, fill: "#9ca3af" }} tickFormatter={(v) => `${v}р`} />
-                      <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} tickFormatter={(v) => fmtM(Number(v))} width={48} />
-                      <Tooltip
-                        formatter={(v, name) => [
-                          Number(v).toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 }),
-                          name === "conservative" ? "Консервативний" : name === "moderate" ? "Помірний" : "Агресивний",
-                        ]}
-                        labelFormatter={(l) => `Через ${l} років`}
-                        contentStyle={{ borderRadius: 12, border: "1px solid #f3f4f6", fontSize: 12 }}
-                      />
-                      <Legend formatter={(v) => v === "conservative" ? "Консервативний 5%" : v === "moderate" ? "Помірний 10%" : "Агресивний 15%"} wrapperStyle={{ fontSize: 11 }} />
-                      <Area type="monotone" dataKey="conservative" stroke="#10b981" strokeWidth={2} fill="url(#gc)" dot={false} />
-                      <Area type="monotone" dataKey="moderate"     stroke="#8b5cf6" strokeWidth={2} fill="url(#gm)" dot={false} />
-                      <Area type="monotone" dataKey="aggressive"   stroke="#f43f5e" strokeWidth={2} fill="url(#ga)" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                {/* Chart */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={fcData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="fc-cons" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="fc-mod" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="fc-agg" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                        <XAxis
+                          dataKey="year"
+                          tick={{ fontSize: 11, fill: "#9ca3af" }}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: "#9ca3af" }}
+                          tickFormatter={(v) => fmtAxis(Number(v))}
+                          width={52}
+                        />
+                        <Tooltip
+                          formatter={(v, name) => [
+                            Number(v).toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 }),
+                            name === "conservative" ? "Консервативний 5%" : name === "moderate" ? "Помірний 10%" : "Агресивний 15%",
+                          ]}
+                          labelFormatter={(l) => `${l} рік`}
+                          contentStyle={{ borderRadius: 12, border: "1px solid #f3f4f6", fontSize: 12 }}
+                        />
+                        <Legend
+                          formatter={(v) => v === "conservative" ? "Консервативний 5%" : v === "moderate" ? "Помірний 10%" : "Агресивний 15%"}
+                          wrapperStyle={{ fontSize: 11 }}
+                        />
+                        <Area type="monotone" dataKey="conservative" stroke="#10b981" strokeWidth={2} fill="url(#fc-cons)" dot={false} />
+                        <Area type="monotone" dataKey="moderate"     stroke="#8b5cf6" strokeWidth={2} fill="url(#fc-mod)"  dot={false} />
+                        <Area type="monotone" dataKey="aggressive"   stroke="#f43f5e" strokeWidth={2} fill="url(#fc-agg)"  dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3 text-center">
+                    Прогноз розраховано методом складного відсотка. Реальна доходність може відрізнятися.
+                  </p>
                 </div>
-              </div>
+              </>
             );
           })()}
         </div>
