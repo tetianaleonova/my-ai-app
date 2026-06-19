@@ -15,6 +15,8 @@ export async function GET() {
   return NextResponse.json({
     tokenSet: true,
     tokenLength: token.length,
+    tokenStart: token.slice(0, 12),   // shows "8949212301:A" — safe prefix
+    tokenHasNewline: token.includes("\n") || token.includes("\r"),
     usernameSet: !!username,
     username,
     getMe: data,
