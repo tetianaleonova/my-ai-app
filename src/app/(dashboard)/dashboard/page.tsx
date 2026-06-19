@@ -54,12 +54,21 @@ export default function DashboardPage() {
   const [tgConnected, setTgConnected] = useState<boolean | null>(null);
   const [tgCode, setTgCode] = useState<string | null>(null);
   const [tgLoading, setTgLoading] = useState(false);
+  const [tgUsername, setTgUsername] = useState("");
+  const [tgUsernameInput, setTgUsernameInput] = useState("");
 
   useEffect(() => {
     fetch("/api/telegram/link").then(r => r.json()).then(d => setTgConnected(d.connected));
+    const saved = localStorage.getItem("tg_bot_username");
+    if (saved) { setTgUsername(saved); setTgUsernameInput(saved); }
   }, []);
 
   async function getTgCode() {
+    if (tgUsernameInput.trim()) {
+      const u = tgUsernameInput.trim().replace(/^@/, "");
+      setTgUsername(u);
+      localStorage.setItem("tg_bot_username", u);
+    }
     setTgLoading(true);
     const res = await fetch("/api/telegram/link", { method: "POST" });
     const d = await res.json();
@@ -295,6 +304,15 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Username бота (від BotFather)</label>
+                <input
+                  placeholder="@MyFinanceBot"
+                  value={tgUsernameInput}
+                  onChange={e => setTgUsernameInput(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-gray-50"
+                />
+              </div>
               <button
                 onClick={getTgCode}
                 disabled={tgLoading}
@@ -317,14 +335,20 @@ export default function DashboardPage() {
                   📋 Копіювати
                 </button>
               </div>
-              <a
-                href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "ваш_бот"}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-2.5 bg-[#2481cc] hover:bg-[#1d6fa8] text-white font-semibold rounded-xl text-sm text-center transition-colors"
-              >
-                ✈️ Відкрити бота в Telegram
-              </a>
+              {tgUsername ? (
+                <a
+                  href={`https://t.me/${tgUsername}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full py-2.5 bg-[#2481cc] hover:bg-[#1d6fa8] text-white font-semibold rounded-xl text-sm text-center transition-colors"
+                >
+                  ✈️ Відкрити @{tgUsername}
+                </a>
+              ) : (
+                <div className="text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2 text-center">
+                  Знайди бота в Telegram за username та відправ команду вище
+                </div>
+              )}
               <p className="text-[11px] text-gray-400 text-center">Код дійсний до наступного запиту</p>
             </div>
           )}
