@@ -8,6 +8,7 @@ import type { User } from "next-auth";
 const NAV = [
   { href: "/dashboard", label: "Дашборд", emoji: "📊" },
   { href: "/dashboard/transactions", label: "Транзакції", emoji: "💳" },
+  { href: "/dashboard/investments", label: "Інвестиції", emoji: "📈" },
   { href: "/dashboard/ai-analysis", label: "AI Аналіз", emoji: "🧠" },
   { href: "/dashboard/ai-support", label: "AI Підтримка", emoji: "🌈" },
 ];
