@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -21,11 +19,30 @@ interface MarketData {
     ethereum: { usd: number; usd_24h_change: number; usd_market_cap: number };
     solana: { usd: number; usd_24h_change: number; usd_market_cap: number };
   } | null;
-  btcChart: { date: string; price: number }[] | null;
   forex: { USD: number | null; EUR: number | null; GBP: number | null; PLN: number | null } | null;
   stocks: { symbol: string; price: number | null; change: number; changePercent: number }[];
   updatedAt: string;
 }
+
+interface ChartAsset {
+  id: string;
+  type: "crypto" | "stock";
+  label: string;
+  emoji: string;
+  color: string;
+}
+
+const CHART_ASSETS: ChartAsset[] = [
+  { id: "bitcoin",  type: "crypto", label: "Bitcoin",   emoji: "₿",  color: "#F7931A" },
+  { id: "ethereum", type: "crypto", label: "Ethereum",  emoji: "Ξ",  color: "#627EEA" },
+  { id: "solana",   type: "crypto", label: "Solana",    emoji: "◎",  color: "#9945FF" },
+  { id: "AAPL",     type: "stock",  label: "Apple",     emoji: "🍎", color: "#555555" },
+  { id: "MSFT",     type: "stock",  label: "Microsoft", emoji: "🪟", color: "#0078D4" },
+  { id: "GOOGL",    type: "stock",  label: "Google",    emoji: "🔍", color: "#4285F4" },
+  { id: "NVDA",     type: "stock",  label: "NVIDIA",    emoji: "🎮", color: "#76B900" },
+  { id: "TSLA",     type: "stock",  label: "Tesla",     emoji: "⚡", color: "#CC0000" },
+  { id: "AMZN",     type: "stock",  label: "Amazon",    emoji: "📦", color: "#FF9900" },
+];
 
 // ─── Platform data ────────────────────────────────────────────────────────────
 
@@ -272,6 +289,12 @@ export default function InvestmentsPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"market" | "platforms" | "calculator">("market");
 
+  // Chart state
+  const [selectedAsset, setSelectedAsset] = useState<ChartAsset>(CHART_ASSETS[0]);
+  const [chartDays, setChartDays] = useState<"7" | "14" | "30" | "90">("14");
+  const [chartData, setChartData] = useState<{ date: string; price: number }[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
+
   const load = useCallback(() => {
     setLoading(true);
     fetch("/api/market")
@@ -282,6 +305,21 @@ export default function InvestmentsPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  const loadChart = useCallback((asset: ChartAsset, days: string) => {
+    setChartLoading(true);
+    fetch(`/api/market/chart?id=${asset.id}&type=${asset.type}&days=${days}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setChartData(d.points ?? []);
+        setChartLoading(false);
+      })
+      .catch(() => setChartLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadChart(selectedAsset, chartDays);
+  }, [selectedAsset, chartDays, loadChart]);
 
   useEffect(() => {
     load();
@@ -391,19 +429,77 @@ export default function InvestmentsPage() {
                 </div>
               )}
 
-              {/* BTC Chart */}
-              {data?.btcChart && data.btcChart.length > 0 && (
-                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-800">₿ Bitcoin — 14 днів (USD)</h3>
-                    <span className="text-xs text-gray-400">CoinGecko</span>
+              {/* Interactive Chart */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                {/* Asset selector */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <span className="text-xs font-medium text-gray-400 self-center mr-1">Актив:</span>
+                  {CHART_ASSETS.map((asset) => {
+                    const active = selectedAsset.id === asset.id;
+                    return (
+                      <button
+                        key={asset.id}
+                        onClick={() => {
+                          setSelectedAsset(asset);
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                          active
+                            ? "text-white border-transparent shadow-sm"
+                            : "bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100"
+                        }`}
+                        style={active ? { backgroundColor: asset.color, borderColor: asset.color } : {}}
+                      >
+                        <span>{asset.emoji}</span>
+                        <span>{asset.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  <div className="ml-auto flex gap-1">
+                    {(["7", "14", "30", "90"] as const).map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setChartDays(d)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                          chartDays === d
+                            ? "bg-gray-900 text-white"
+                            : "text-gray-400 hover:bg-gray-50"
+                        }`}
+                      >
+                        {d}д
+                      </button>
+                    ))}
                   </div>
+                </div>
+
+                {/* Chart title */}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-800">
+                    {selectedAsset.emoji} {selectedAsset.label} — {chartDays} днів
+                  </h3>
+                  <span className="text-xs text-gray-400">
+                    {selectedAsset.type === "crypto" ? "CoinGecko" : "Yahoo Finance"}
+                  </span>
+                </div>
+
+                {/* Chart */}
+                {chartLoading ? (
+                  <div className="flex items-center justify-center h-[200px]">
+                    <div className="flex flex-col items-center gap-2 text-gray-400">
+                      <div
+                        className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
+                        style={{ borderColor: `${selectedAsset.color}40`, borderTopColor: selectedAsset.color }}
+                      />
+                      <span className="text-xs">Завантажую...</span>
+                    </div>
+                  </div>
+                ) : chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={200}>
-                    <AreaChart data={data.btcChart}>
+                    <AreaChart data={chartData}>
                       <defs>
-                        <linearGradient id="btcGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#F7931A" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#F7931A" stopOpacity={0} />
+                        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={selectedAsset.color} stopOpacity={0.2} />
+                          <stop offset="95%" stopColor={selectedAsset.color} stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -412,35 +508,42 @@ export default function InvestmentsPage() {
                         tick={{ fontSize: 10, fill: "#9CA3AF" }}
                         axisLine={false}
                         tickLine={false}
-                        interval={2}
+                        interval={Math.ceil(chartData.length / 7)}
                       />
                       <YAxis
                         tick={{ fontSize: 10, fill: "#9CA3AF" }}
                         axisLine={false}
                         tickLine={false}
                         domain={["auto", "auto"]}
-                        tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                        tickFormatter={(v) =>
+                          v >= 1000
+                            ? `$${(v / 1000).toFixed(0)}k`
+                            : `$${Number(v).toFixed(selectedAsset.type === "crypto" && v < 10 ? 2 : 0)}`
+                        }
                       />
                       <Tooltip
-                        formatter={(v) => [`$${Number(v).toLocaleString("en-US")}`, "BTC"]}
-                        contentStyle={{
-                          borderRadius: "12px",
-                          border: "1px solid #f0f0f0",
-                          fontSize: "12px",
-                        }}
+                        formatter={(v) => [
+                          `$${Number(v).toLocaleString("en-US", { minimumFractionDigits: selectedAsset.type === "crypto" && Number(v) < 100 ? 2 : 0 })}`,
+                          selectedAsset.label,
+                        ]}
+                        contentStyle={{ borderRadius: "12px", border: "1px solid #f0f0f0", fontSize: "12px" }}
                       />
                       <Area
                         type="monotone"
                         dataKey="price"
-                        stroke="#F7931A"
+                        stroke={selectedAsset.color}
                         strokeWidth={2.5}
-                        fill="url(#btcGrad)"
+                        fill="url(#chartGrad)"
                         dot={false}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center justify-center h-[200px] text-gray-400 text-sm">
+                    Не вдалось завантажити графік
+                  </div>
+                )}
+              </div>
 
               {/* Stocks */}
               {data?.stocks && data.stocks.length > 0 && (
