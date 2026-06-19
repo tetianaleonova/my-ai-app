@@ -19,10 +19,12 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts  Account[]
-  sessions  Session[]
-  progresses Progress[]
+  accounts     Account[]
+  sessions     Session[]
+  progresses   Progress[]
+  transactions Transaction[]
 }
+
 
 model Account {
   id                String  @id @default(cuid())
@@ -58,6 +60,24 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ─── Finance Tracker ───────────────────────────────────────────────
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  amount      Float
+  type        String   @default("expense")
+  category    String
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, date])
 }
 
 // ─── Прогрес користувача ───────────────────────────────────────────
