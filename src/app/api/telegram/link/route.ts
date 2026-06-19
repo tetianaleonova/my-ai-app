@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME ?? "";
+
 function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
-// GET — check connection status
+// GET — connection status + bot username
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,10 +19,14 @@ export async function GET() {
     select: { telegramChatId: true },
   });
 
-  return NextResponse.json({ connected: !!user?.telegramChatId });
+  return NextResponse.json({
+    connected: !!user?.telegramChatId,
+    botUsername: BOT_USERNAME,
+    botConfigured: !!process.env.TELEGRAM_BOT_TOKEN && !!BOT_USERNAME,
+  });
 }
 
-// POST — generate a one-time link code
+// POST — generate one-time deep-link code
 export async function POST() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,10 +37,14 @@ export async function POST() {
     data: { telegramLinkCode: code },
   });
 
-  return NextResponse.json({ code });
+  const deepLink = BOT_USERNAME
+    ? `https://t.me/${BOT_USERNAME}?start=${code}`
+    : null;
+
+  return NextResponse.json({ code, deepLink });
 }
 
-// DELETE — disconnect Telegram
+// DELETE — disconnect
 export async function DELETE() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

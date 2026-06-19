@@ -54,21 +54,43 @@ export async function POST(req: NextRequest) {
     const chatId: number = msg.chat.id;
     const text: string = msg.text.trim();
 
-    // /start
-    if (text === "/start") {
+    // /start or /start CODE (deep link auto-connect)
+    if (text.startsWith("/start")) {
+      const param = text.slice(6).trim();
+
+      // Auto-link via deep link code
+      if (param && /^[A-Z0-9]{6}$/i.test(param)) {
+        const code = param.toUpperCase();
+        const user = await prisma.user.findFirst({ where: { telegramLinkCode: code } });
+        if (user) {
+          await prisma.user.updateMany({ where: { telegramChatId: String(chatId) }, data: { telegramChatId: null } });
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { telegramChatId: String(chatId), telegramLinkCode: null },
+          });
+          await send(chatId,
+            "✅ <b>Акаунт підключено автоматично!</b>\n\n" +
+            "Тепер надсилай мені:\n" +
+            "• <code>250 кава</code> — записати витрату\n" +
+            "• <code>+5000 зарплата</code> — записати дохід\n" +
+            "• <code>баланс</code> — поточний стан\n" +
+            "• <code>останні</code> — 5 останніх транзакцій\n\n" +
+            "Спробуй прямо зараз! 👇"
+          );
+          return NextResponse.json({ ok: true });
+        }
+      }
+
+      // Regular /start — welcome
       await send(chatId,
         "👋 <b>Привіт! Я твій фінансовий бот 💸</b>\n\n" +
         "Записую витрати та доходи прямо тут у Telegram.\n\n" +
         "<b>Щоб підключити акаунт:</b>\n" +
-        "1. Відкрий Finance Tracker у браузері\n" +
-        "2. На дашборді знайди «Підключити Telegram»\n" +
-        "3. Натисни «Отримати код» і відправ мені:\n" +
-        "<code>/link XXXXXX</code>\n\n" +
+        "Відкрий Finance Tracker → Дашборд → «Підключити Telegram» → натисни кнопку\n\n" +
         "<b>Після підключення:</b>\n" +
         "• <code>250 кава</code> — витрата\n" +
         "• <code>+5000 зарплата</code> — дохід\n" +
         "• <code>баланс</code> — стан за місяць\n" +
-        "• <code>останні</code> — останні 5 транзакцій\n" +
         "• <code>допомога</code> — всі команди"
       );
       return NextResponse.json({ ok: true });
