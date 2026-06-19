@@ -117,14 +117,36 @@ export default function TransactionsPage() {
 
   const filtered = transactions.filter((t) => filter === "all" || t.type === filter);
 
+  async function handleDeleteAll() {
+    if (!confirm(`Видалити всі ${transactions.length} транзакцій? Це незворотно.`)) return;
+    try {
+      const res = await fetch("/api/transactions", { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Всі транзакції видалено 🗑️");
+      setTransactions([]);
+    } catch {
+      toast.error("Помилка видалення 😬");
+    }
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Транзакції 💳</h2>
-        <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
-          📄 Імпорт CSV
-          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+            📄 Імпорт CSV
+            <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
+          </label>
+          {transactions.length > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-red-200 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors shadow-sm"
+            >
+              🗑️ Видалити всі
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add Form */}
