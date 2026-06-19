@@ -18,57 +18,107 @@ export function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 h-full flex flex-col border-r border-gray-100 bg-white shrink-0">
-      <div className="p-5 border-b border-gray-100">
-        <div className="flex items-center gap-2.5">
-          <span className="text-3xl">💰</span>
-          <div>
-            <h1 className="font-bold text-gray-900 text-sm leading-tight">Finance Tracker</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Розумний помічник</p>
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-60 h-full flex-col border-r border-gray-100 bg-white shrink-0">
+        <div className="p-5 border-b border-gray-100">
+          <div className="flex items-center gap-2.5">
+            <span className="text-3xl">💰</span>
+            <div>
+              <h1 className="font-bold text-gray-900 text-sm leading-tight">Finance Tracker</h1>
+              <p className="text-xs text-gray-400 mt-0.5">Розумний помічник</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1">
+          {NAV.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive
+                    ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <span className="text-lg">{item.emoji}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="p-3 border-t border-gray-100">
+          <div className="flex items-center gap-2.5 px-2 py-2">
+            {user.image ? (
+              <img src={user.image} alt="" className="w-8 h-8 rounded-full" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-xs font-bold">
+                {(user.name ?? user.email ?? "?")[0].toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-900 truncate">{user.name ?? user.email}</p>
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Вийти
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile top bar */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">💰</span>
+          <span className="font-bold text-gray-900 text-sm">Finance Tracker</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {user.image ? (
+            <img src={user.image} alt="" className="w-7 h-7 rounded-full" />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-xs font-bold">
+              {(user.name ?? user.email ?? "?")[0].toUpperCase()}
+            </div>
+          )}
+          <button
+            onClick={() => signOut()}
+            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50"
+          >
+            Вийти
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile bottom nav */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 flex">
         {NAV.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors ${
+                isActive ? "text-violet-600" : "text-gray-400"
               }`}
             >
-              <span className="text-lg">{item.emoji}</span>
-              <span>{item.label}</span>
+              <span className="text-xl leading-none">{item.emoji}</span>
+              <span className="text-[9px] font-medium leading-none truncate max-w-[48px] text-center">
+                {item.label}
+              </span>
+              {isActive && (
+                <span className="absolute bottom-0 w-8 h-0.5 bg-gradient-to-r from-violet-500 to-pink-500 rounded-full" />
+              )}
             </Link>
           );
         })}
       </nav>
-
-      <div className="p-3 border-t border-gray-100">
-        <div className="flex items-center gap-2.5 px-2 py-2">
-          {user.image ? (
-            <img src={user.image} alt="" className="w-8 h-8 rounded-full" />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-xs font-bold">
-              {(user.name ?? user.email ?? "?")[0].toUpperCase()}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-900 truncate">{user.name ?? user.email}</p>
-          </div>
-          <button
-            onClick={() => signOut()}
-            className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Вийти
-          </button>
-        </div>
-      </div>
-    </aside>
+    </>
   );
 }

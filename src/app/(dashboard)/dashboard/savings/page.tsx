@@ -227,7 +227,7 @@ export default function SavingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-4 md:space-y-6">
       <div className="flex items-center gap-3">
         <h2 className="text-2xl font-bold text-gray-900">Збереження</h2>
         <span className="text-2xl">🐷</span>

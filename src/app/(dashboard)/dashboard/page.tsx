@@ -165,7 +165,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3">
         <h2 className="text-2xl font-bold text-gray-900">Дашборд</h2>
         <span className="text-sm text-gray-400">

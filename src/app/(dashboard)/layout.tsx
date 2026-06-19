@@ -14,7 +14,10 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-screen bg-white overflow-hidden">
       <Sidebar user={session.user} />
-      <main className="flex-1 overflow-y-auto bg-[#fafafa]">{children}</main>
+      {/* pt-14 on mobile = space for top bar; pb-16 on mobile = space for bottom nav */}
+      <main className="flex-1 overflow-y-auto bg-[#fafafa] pt-14 pb-16 md:pt-0 md:pb-0">
+        {children}
+      </main>
       <Toaster position="top-right" richColors />
     </div>
   );

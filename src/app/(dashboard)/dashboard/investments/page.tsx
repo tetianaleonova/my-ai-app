@@ -567,7 +567,7 @@ export default function InvestmentsPage() {
     : null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -590,7 +590,7 @@ export default function InvestmentsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 border border-gray-100 shadow-sm w-fit">
+      <div className="flex overflow-x-auto gap-2 bg-white rounded-2xl p-1.5 border border-gray-100 shadow-sm scrollbar-hide -mx-4 md:mx-0 px-4 md:px-1.5 md:w-fit md:flex-wrap">
         {(
           [
             { key: "market",     label: "🌍 Ринок" },
@@ -631,7 +631,7 @@ export default function InvestmentsPage() {
                   <h3 className="font-semibold text-gray-700 mb-3 text-sm uppercase tracking-wide">
                     Курси валют (НБУ) 💱
                   </h3>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {data.forex.USD && <ForexCard code="USD" rate={data.forex.USD} emoji="🇺🇸" />}
                     {data.forex.EUR && <ForexCard code="EUR" rate={data.forex.EUR} emoji="🇪🇺" />}
                     {data.forex.GBP && <ForexCard code="GBP" rate={data.forex.GBP} emoji="🇬🇧" />}
@@ -646,7 +646,7 @@ export default function InvestmentsPage() {
                   <h3 className="font-semibold text-gray-700 mb-3 text-sm uppercase tracking-wide">
                     Крипто 🔐
                   </h3>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     <CryptoCard
                       name="Bitcoin"
                       emoji="₿"
@@ -1329,7 +1329,7 @@ export default function InvestmentsPage() {
                 </div>
 
                 {/* Summary chips */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
                     { label: `Консервативний · до ${currentYear + forecastYears}`, color: "#10b981", bg: "bg-emerald-50", border: "border-emerald-100", val: conservative[conservative.length - 1].value },
                     { label: `Помірний · до ${currentYear + forecastYears}`, color: "#8b5cf6", bg: "bg-violet-50", border: "border-violet-100", val: moderate[moderate.length - 1].value },

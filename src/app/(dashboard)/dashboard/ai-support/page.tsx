@@ -71,7 +71,7 @@ export default function AiSupportPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-6 pb-4 border-b border-gray-100 bg-white">
+      <div className="p-4 md:p-6 pb-4 border-b border-gray-100 bg-white">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-xl shadow-sm">
             🌈
