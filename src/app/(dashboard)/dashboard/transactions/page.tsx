@@ -24,6 +24,16 @@ export default function TransactionsPage() {
   const [filter, setFilter] = useState<"all" | "income" | "expense">("all");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Mono integration state
+  const [showMono, setShowMono] = useState(false);
+  const [monoToken, setMonoToken] = useState("");
+  const [monoLoading, setMonoLoading] = useState(false);
+  const [monoAccounts, setMonoAccounts] = useState<{ id: string; type: string; currencyCode: number; balance: number; creditLimit: number; maskedPan?: string[] }[]>([]);
+  const [monoClientName, setMonoClientName] = useState("");
+  const [monoAccountId, setMonoAccountId] = useState("");
+  const [monoPeriod, setMonoPeriod] = useState("30");
+  const [monoSyncing, setMonoSyncing] = useState(false);
+
   const [form, setForm] = useState({
     type: "expense",
     amount: "",
@@ -117,6 +127,52 @@ export default function TransactionsPage() {
 
   const filtered = transactions.filter((t) => filter === "all" || t.type === filter);
 
+  async function loadMonoAccounts() {
+    if (!monoToken.trim()) { toast.error("Введи токен Monobank"); return; }
+    setMonoLoading(true);
+    try {
+      const res = await fetch("/api/mono/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: monoToken }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      setMonoAccounts(d.accounts ?? []);
+      setMonoClientName(d.name ?? "");
+      setMonoAccountId(d.accounts?.[0]?.id ?? "");
+      toast.success(`Привіт, ${d.name}! Знайдено ${d.accounts?.length ?? 0} рахунків 🎉`);
+    } catch (err) {
+      toast.error(`Помилка: ${err}`);
+    } finally {
+      setMonoLoading(false);
+    }
+  }
+
+  async function syncMono() {
+    if (!monoAccountId) { toast.error("Обери рахунок"); return; }
+    setMonoSyncing(true);
+    try {
+      const to   = new Date();
+      const from = new Date();
+      from.setDate(from.getDate() - parseInt(monoPeriod));
+      const res = await fetch("/api/mono/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: monoToken, accountId: monoAccountId, from: from.toISOString(), to: to.toISOString() }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      toast.success(`Імпортовано ${d.count} транзакцій з Mono! 🎉`);
+      fetchAll();
+      setShowMono(false);
+    } catch (err) {
+      toast.error(`Помилка синхронізації: ${err}`);
+    } finally {
+      setMonoSyncing(false);
+    }
+  }
+
   async function handleDeleteAll() {
     if (!confirm(`Видалити всі ${transactions.length} транзакцій? Це незворотно.`)) return;
     try {
@@ -131,9 +187,19 @@ export default function TransactionsPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold text-gray-900">Транзакції 💳</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowMono((v) => !v)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm border ${
+              showMono
+                ? "bg-[#1a1a2e] border-[#1a1a2e] text-white"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <span className="text-base">🏦</span> Mono API
+          </button>
           <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
             📄 Імпорт CSV
             <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
@@ -148,6 +214,152 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      {/* ── Mono API Panel ── */}
+      {showMono && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center gap-3 p-5 border-b border-gray-50 bg-gradient-to-r from-[#1a1a2e]/5 to-transparent">
+            <div className="w-10 h-10 rounded-xl bg-[#1a1a2e] flex items-center justify-center text-xl shrink-0">🏦</div>
+            <div>
+              <p className="font-semibold text-gray-900">Підключення Monobank API</p>
+              <p className="text-xs text-gray-400">Автоматично імпортуй транзакції з твоїх рахунків Mono</p>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-5">
+            {/* Instructions */}
+            {monoAccounts.length === 0 && (
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-amber-800">📋 Як отримати токен Monobank</p>
+                <ol className="space-y-2">
+                  {[
+                    { step: "1", text: "Відкрий додаток Monobank на смартфоні" },
+                    { step: "2", text: "Перейди: Налаштування → Інше → API для розробників" },
+                    { step: "3", text: "Натисни «Отримати токен» та підтвердь у додатку" },
+                    { step: "4", text: "Скопіюй токен і встав нижче" },
+                  ].map((item) => (
+                    <li key={item.step} className="flex items-start gap-2.5 text-sm text-amber-700">
+                      <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        {item.step}
+                      </span>
+                      {item.text}
+                    </li>
+                  ))}
+                </ol>
+                <div className="flex items-center gap-2 pt-1 text-xs text-amber-600 bg-amber-100/60 rounded-lg px-3 py-2">
+                  <span>🔒</span>
+                  <span>Токен зберігається лише на твоєму пристрої та не передається третім особам</span>
+                </div>
+              </div>
+            )}
+
+            {/* Connected info */}
+            {monoAccounts.length > 0 && monoClientName && (
+              <div className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">Підключено: {monoClientName}</p>
+                  <p className="text-xs text-green-600">{monoAccounts.length} рахунків знайдено</p>
+                </div>
+              </div>
+            )}
+
+            {/* Token input */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-500">Токен Monobank</label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  placeholder="u•••••••••••••••••••••••"
+                  value={monoToken}
+                  onChange={(e) => setMonoToken(e.target.value)}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50 font-mono"
+                />
+                <button
+                  onClick={loadMonoAccounts}
+                  disabled={monoLoading || !monoToken.trim()}
+                  className="px-4 py-2.5 bg-[#1a1a2e] text-white text-sm font-semibold rounded-xl hover:bg-[#2a2a4e] disabled:opacity-50 transition-colors whitespace-nowrap"
+                >
+                  {monoLoading ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Перевіряю...
+                    </span>
+                  ) : monoAccounts.length > 0 ? "🔄 Оновити" : "🔌 Підключити"}
+                </button>
+              </div>
+            </div>
+
+            {/* Account + period selection */}
+            {monoAccounts.length > 0 && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-500">Рахунок</label>
+                    <select
+                      value={monoAccountId}
+                      onChange={(e) => setMonoAccountId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                    >
+                      {monoAccounts.map((acc) => {
+                        const typeLabel =
+                          acc.type === "black" ? "Чорна" :
+                          acc.type === "white" ? "Біла" :
+                          acc.type === "platinum" ? "Платинова" :
+                          acc.type === "iron" ? "Залізна" :
+                          acc.type === "fop" ? "ФОП" :
+                          acc.type === "yellow" ? "Жовта" :
+                          acc.type;
+                        const pan = acc.maskedPan?.[0] ?? "";
+                        const balance = (acc.balance / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 });
+                        return (
+                          <option key={acc.id} value={acc.id}>
+                            {typeLabel}{pan ? ` •••• ${pan.slice(-4)}` : ""} — {balance} грн
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-500">Період</label>
+                    <select
+                      value={monoPeriod}
+                      onChange={(e) => setMonoPeriod(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                    >
+                      <option value="7">Останні 7 днів</option>
+                      <option value="14">Останні 14 днів</option>
+                      <option value="30">Останній місяць</option>
+                      <option value="60">Останні 2 місяці</option>
+                      <option value="90">Останні 3 місяці</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+                  <span>ℹ️</span>
+                  <span>Mono API дозволяє отримати не більше 31 дня за один запит. Для більшого терміну розбий на кілька запитів.</span>
+                </div>
+
+                <button
+                  onClick={syncMono}
+                  disabled={monoSyncing}
+                  className="w-full py-3 bg-gradient-to-r from-violet-500 to-pink-500 text-white font-semibold rounded-xl text-sm hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2"
+                >
+                  {monoSyncing ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Синхронізую...
+                    </>
+                  ) : "⬇️ Імпортувати транзакції"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add Form */}
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
