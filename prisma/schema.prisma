@@ -19,6 +19,9 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  telegramChatId   String? @unique
+  telegramLinkCode String? @unique
+
   accounts     Account[]
   sessions     Session[]
   progresses   Progress[]

@@ -50,6 +50,29 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Telegram connect
+  const [tgConnected, setTgConnected] = useState<boolean | null>(null);
+  const [tgCode, setTgCode] = useState<string | null>(null);
+  const [tgLoading, setTgLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/telegram/link").then(r => r.json()).then(d => setTgConnected(d.connected));
+  }, []);
+
+  async function getTgCode() {
+    setTgLoading(true);
+    const res = await fetch("/api/telegram/link", { method: "POST" });
+    const d = await res.json();
+    setTgCode(d.code);
+    setTgLoading(false);
+  }
+
+  async function disconnectTg() {
+    await fetch("/api/telegram/link", { method: "DELETE" });
+    setTgConnected(false);
+    setTgCode(null);
+  }
+
   useEffect(() => {
     fetch("/api/transactions")
       .then((r) => r.json())
@@ -234,6 +257,101 @@ export default function DashboardPage() {
             })}
           </div>
         )}
+      </div>
+
+      {/* ── Telegram Bot Card ── */}
+      <div className={`rounded-2xl border shadow-sm overflow-hidden transition-all ${tgConnected ? "border-green-200 bg-green-50" : "border-gray-100 bg-white"}`}>
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 ${tgConnected ? "bg-green-100" : "bg-blue-50"}`}>
+                ✈️
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">Telegram бот</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {tgConnected
+                    ? "Підключено — надсилай витрати прямо з Telegram"
+                    : "Записуй витрати та доходи через Telegram"}
+                </p>
+              </div>
+            </div>
+            {tgConnected && (
+              <span className="text-xs font-medium text-green-600 bg-green-100 px-2.5 py-1 rounded-full shrink-0">✓ Активний</span>
+            )}
+          </div>
+
+          {!tgConnected && !tgCode && (
+            <div className="mt-4 space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                {[
+                  { e: "💸", t: "250 кава → витрата" },
+                  { e: "💰", t: "+5000 зарплата → дохід" },
+                  { e: "📊", t: "баланс → стан рахунку" },
+                ].map(c => (
+                  <div key={c.t} className="bg-gray-50 rounded-xl px-2.5 py-2 text-center">
+                    <div className="text-base mb-1">{c.e}</div>
+                    <div className="text-[11px] text-gray-400">{c.t}</div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={getTgCode}
+                disabled={tgLoading}
+                className="w-full py-2.5 bg-[#2481cc] hover:bg-[#1d6fa8] text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {tgLoading ? "Генерую код..." : "🔌 Підключити Telegram"}
+              </button>
+            </div>
+          )}
+
+          {tgCode && !tgConnected && (
+            <div className="mt-4 space-y-3">
+              <p className="text-xs text-gray-500">Відправ боту цю команду:</p>
+              <div className="bg-gray-900 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                <code className="text-green-400 text-sm font-mono">/link {tgCode}</code>
+                <button
+                  onClick={() => navigator.clipboard.writeText(`/link ${tgCode}`)}
+                  className="text-xs text-gray-400 hover:text-white transition-colors shrink-0"
+                >
+                  📋 Копіювати
+                </button>
+              </div>
+              <a
+                href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "ваш_бот"}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full py-2.5 bg-[#2481cc] hover:bg-[#1d6fa8] text-white font-semibold rounded-xl text-sm text-center transition-colors"
+              >
+                ✈️ Відкрити бота в Telegram
+              </a>
+              <p className="text-[11px] text-gray-400 text-center">Код дійсний до наступного запиту</p>
+            </div>
+          )}
+
+          {tgConnected && (
+            <div className="mt-4 space-y-2">
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {[
+                  { cmd: "250 кава", label: "витрата" },
+                  { cmd: "+5000 зарплата", label: "дохід" },
+                  { cmd: "баланс", label: "стан" },
+                ].map(c => (
+                  <div key={c.cmd} className="bg-white rounded-xl px-2.5 py-2 border border-green-100 text-center">
+                    <code className="text-gray-700 text-[11px]">{c.cmd}</code>
+                    <div className="text-gray-400 text-[10px] mt-0.5">{c.label}</div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={disconnectTg}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors w-full text-center py-1"
+              >
+                Відключити
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
