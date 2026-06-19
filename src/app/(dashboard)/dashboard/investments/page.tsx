@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import Papa from "papaparse";
 import { Markdown } from "@/components/ui/markdown";
 import {
   XAxis,
@@ -11,6 +12,7 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  Legend,
 } from "recharts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -352,6 +354,17 @@ export default function InvestmentsPage() {
   const [aiStreaming, setAiStreaming] = useState(false);
   const aiBottomRef = useRef<HTMLDivElement>(null);
 
+  // Portfolio AI analysis
+  const [portfolioAnalysis, setPortfolioAnalysis] = useState("");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+
+  // Forecast state
+  const [forecastYears, setForecastYears] = useState<10 | 20 | 30 | 40 | 50>(20);
+  const [monthlyContrib, setMonthlyContrib] = useState(5000);
+
+  // CSV import ref
+  const csvRef = useRef<HTMLInputElement>(null);
+
   // Chart state
   const [selectedAsset, setSelectedAsset] = useState<ChartAsset>(CHART_ASSETS[0]);
   const [chartDays, setChartDays] = useState<"7" | "14" | "30" | "90">("14");
@@ -399,6 +412,78 @@ export default function InvestmentsPage() {
 
   // AI scroll
   useEffect(() => { aiBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMessages]);
+
+  // CSV import for portfolio
+  function handlePortfolioCsv(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data as Record<string, string>[];
+        if (rows.length === 0) { toast.error("CSV порожній 🤷"); return; }
+        try {
+          const res = await fetch("/api/investments/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rows }),
+          });
+          const d = await res.json();
+          if (!res.ok) throw new Error(d.error);
+          toast.success(`Імпортовано ${d.count} інвестицій! 🎉`);
+          loadInvestments();
+        } catch (err) {
+          toast.error(`Помилка імпорту: ${err} 😬`);
+        }
+      },
+      error: () => toast.error("Не вдалось прочитати файл"),
+    });
+    if (csvRef.current) csvRef.current.value = "";
+  }
+
+  // AI portfolio analysis
+  async function runPortfolioAnalysis() {
+    if (investments.length === 0) { toast.error("Портфель порожній"); return; }
+    setPortfolioAnalysis("");
+    setAnalysisLoading(true);
+    try {
+      const marketSnapshot = data?.crypto ? {
+        btc: data.crypto.bitcoin.usd, eth: data.crypto.ethereum.usd,
+        sol: data.crypto.solana.usd, usd: data.forex?.USD, eur: data.forex?.EUR,
+      } : null;
+      const res = await fetch("/api/ai/portfolio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ portfolio: investments, marketSnapshot }),
+      });
+      if (!res.ok) throw new Error();
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+        setPortfolioAnalysis(acc);
+      }
+    } catch { toast.error("Помилка AI аналізу 😬"); }
+    finally { setAnalysisLoading(false); }
+  }
+
+  // Forecast calculation
+  function calcForecast(pv: number, pmt: number, years: number, annualRate: number) {
+    const points: { year: number; value: number }[] = [];
+    const r = annualRate / 100 / 12;
+    for (let y = 0; y <= years; y++) {
+      const n = y * 12;
+      const fv = r === 0
+        ? pv + pmt * n
+        : pv * Math.pow(1 + r, n) + pmt * ((Math.pow(1 + r, n) - 1) / r);
+      points.push({ year: y, value: Math.round(fv) });
+    }
+    return points;
+  }
 
   async function addInvestment(e: React.FormEvent) {
     e.preventDefault();
@@ -854,12 +939,22 @@ export default function InvestmentsPage() {
                 </p>
               )}
             </div>
-            <button
-              onClick={() => setShowAddForm((v) => !v)}
-              className="px-4 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-sm"
-            >
-              {showAddForm ? "✕ Закрити" : "+ Додати"}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* CSV import */}
+              <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handlePortfolioCsv} />
+              <button
+                onClick={() => csvRef.current?.click()}
+                className="px-3 py-2 bg-white border border-gray-200 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                📥 CSV
+              </button>
+              <button
+                onClick={() => setShowAddForm((v) => !v)}
+                className="px-4 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-sm"
+              >
+                {showAddForm ? "✕ Закрити" : "+ Додати"}
+              </button>
+            </div>
           </div>
 
           {/* Add form */}
@@ -1020,6 +1115,154 @@ export default function InvestmentsPage() {
               })}
             </div>
           )}
+
+          {/* AI Portfolio Analysis */}
+          {investments.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🤖</span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">AI Аналіз портфеля</p>
+                    <p className="text-xs text-gray-400">Рекомендації щодо покращення та прогноз доходності</p>
+                  </div>
+                </div>
+                <button
+                  onClick={runPortfolioAnalysis}
+                  disabled={analysisLoading}
+                  className="px-4 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm flex items-center gap-1.5"
+                >
+                  {analysisLoading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Аналізую...
+                    </>
+                  ) : "✨ Аналізувати"}
+                </button>
+              </div>
+              {portfolioAnalysis && (
+                <div className="p-5 text-sm text-gray-700">
+                  <Markdown content={portfolioAnalysis} />
+                </div>
+              )}
+              {!portfolioAnalysis && !analysisLoading && (
+                <div className="p-5 text-center text-sm text-gray-400">
+                  Натисни «Аналізувати» — AI оцінить твій портфель і дасть персональні рекомендації
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Portfolio Growth Forecast */}
+          {investments.length > 0 && (() => {
+            const pv = investments.reduce((s, i) => s + i.amount, 0);
+            const conservative = calcForecast(pv, monthlyContrib, forecastYears, 5);
+            const moderate     = calcForecast(pv, monthlyContrib, forecastYears, 10);
+            const aggressive   = calcForecast(pv, monthlyContrib, forecastYears, 15);
+            const chartData = conservative.map((p, idx) => ({
+              year: p.year,
+              conservative: p.value,
+              moderate: moderate[idx].value,
+              aggressive: aggressive[idx].value,
+            }));
+            const fmtM = (v: number) => v >= 1_000_000
+              ? `${(v / 1_000_000).toFixed(1)}M`
+              : v >= 1_000
+              ? `${(v / 1_000).toFixed(0)}k`
+              : `${v}`;
+
+            return (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">📈 Прогноз зростання портфеля</p>
+                    <p className="text-xs text-gray-400 mt-0.5">3 сценарії: консервативний 5% / помірний 10% / агресивний 15% річних</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 bg-gray-50 rounded-xl px-3 py-1.5 border border-gray-200">
+                      <span className="text-xs text-gray-500">Внесок/міс:</span>
+                      <input
+                        type="number"
+                        value={monthlyContrib}
+                        onChange={(e) => setMonthlyContrib(Math.max(0, Number(e.target.value)))}
+                        className="w-20 text-xs font-semibold text-gray-800 bg-transparent outline-none text-right"
+                        step={500}
+                        min={0}
+                      />
+                      <span className="text-xs text-gray-400">грн</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-200">
+                      {([10, 20, 30, 40, 50] as const).map((y) => (
+                        <button
+                          key={y}
+                          onClick={() => setForecastYears(y)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                            forecastYears === y
+                              ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
+                              : "text-gray-500 hover:bg-gray-100"
+                          }`}
+                        >
+                          {y}р
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 flex-wrap text-xs">
+                  {[
+                    { label: "Консервативний (5%)", color: "#10b981", val: conservative[conservative.length - 1].value },
+                    { label: "Помірний (10%)", color: "#8b5cf6", val: moderate[moderate.length - 1].value },
+                    { label: "Агресивний (15%)", color: "#f43f5e", val: aggressive[aggressive.length - 1].value },
+                  ].map((s) => (
+                    <div key={s.label} className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-sm" style={{ background: s.color }} />
+                      <span className="text-gray-500">{s.label}:</span>
+                      <span className="font-semibold text-gray-800">
+                        {s.val.toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gm" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="ga" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="year" tick={{ fontSize: 11, fill: "#9ca3af" }} tickFormatter={(v) => `${v}р`} />
+                      <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} tickFormatter={(v) => fmtM(Number(v))} width={48} />
+                      <Tooltip
+                        formatter={(v, name) => [
+                          Number(v).toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 }),
+                          name === "conservative" ? "Консервативний" : name === "moderate" ? "Помірний" : "Агресивний",
+                        ]}
+                        labelFormatter={(l) => `Через ${l} років`}
+                        contentStyle={{ borderRadius: 12, border: "1px solid #f3f4f6", fontSize: 12 }}
+                      />
+                      <Legend formatter={(v) => v === "conservative" ? "Консервативний 5%" : v === "moderate" ? "Помірний 10%" : "Агресивний 15%"} wrapperStyle={{ fontSize: 11 }} />
+                      <Area type="monotone" dataKey="conservative" stroke="#10b981" strokeWidth={2} fill="url(#gc)" dot={false} />
+                      <Area type="monotone" dataKey="moderate"     stroke="#8b5cf6" strokeWidth={2} fill="url(#gm)" dot={false} />
+                      <Area type="monotone" dataKey="aggressive"   stroke="#f43f5e" strokeWidth={2} fill="url(#ga)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
