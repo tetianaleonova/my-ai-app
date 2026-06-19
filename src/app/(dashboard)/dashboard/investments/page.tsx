@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import { Markdown } from "@/components/ui/markdown";
 import {
   XAxis,
   YAxis,
@@ -1065,7 +1066,9 @@ export default function InvestmentsPage() {
                     ? "bg-red-50 border border-red-200 text-red-600 rounded-tl-sm"
                     : "bg-gray-50 border border-gray-100 text-gray-800 rounded-tl-sm"
                 }`}>
-                  {m.error ? m.error : m.content ? m.content : (
+                  {m.error ? m.error : m.content ? (
+                    m.role === "user" ? <span className="leading-relaxed">{m.content}</span> : <Markdown content={m.content} />
+                  ) : (
                     <span className="flex gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />
                       <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:150ms]" />

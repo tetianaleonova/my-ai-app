@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Markdown } from "@/components/ui/markdown";
 
 interface Message {
   id: string;
@@ -115,7 +116,7 @@ export default function AiSupportPage() {
               </div>
             )}
             <div
-              className={`max-w-[72%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+              className={`max-w-[72%] rounded-2xl px-4 py-3 text-sm ${
                 m.role === "user"
                   ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-tr-sm"
                   : m.error
@@ -126,7 +127,7 @@ export default function AiSupportPage() {
               {m.error ? (
                 m.error
               ) : m.content ? (
-                m.content
+                m.role === "user" ? <span className="leading-relaxed">{m.content}</span> : <Markdown content={m.content} />
               ) : (
                 <span className="flex gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />

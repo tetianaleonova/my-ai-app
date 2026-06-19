@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { Message } from "@/types";
+import { Markdown } from "@/components/ui/markdown";
 
 const ERROR_LABELS: Record<number, string> = {
   401: "Необхідна авторизація. Увійди знову.",
@@ -91,7 +92,7 @@ export function Chat() {
             )}
             <div className={`max-w-[72%] ${m.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
               <div
-                className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                className={`rounded-2xl px-4 py-3 text-sm ${
                   m.role === "user"
                     ? "bg-indigo-600 text-white rounded-tr-sm"
                     : (m as Message & { error?: string }).error
@@ -105,7 +106,7 @@ export function Chat() {
                     <span>{(m as Message & { error?: string }).error}</span>
                   </span>
                 ) : m.content ? (
-                  m.content
+                  m.role === "user" ? <span className="leading-relaxed">{m.content}</span> : <Markdown content={m.content} />
                 ) : (
                   <span className="flex gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />

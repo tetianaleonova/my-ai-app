@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Markdown } from "@/components/ui/markdown";
 
 export default function AiAnalysisPage() {
   const [analysis, setAnalysis] = useState("");
@@ -68,7 +69,7 @@ export default function AiAnalysisPage() {
             </div>
             <span className="font-semibold text-gray-800">Фінансовий звіт</span>
           </div>
-          <div className="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">{analysis}</div>
+          <div className="text-sm text-gray-700"><Markdown content={analysis} /></div>
         </div>
       )}
 
