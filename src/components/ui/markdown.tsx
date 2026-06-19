@@ -84,6 +84,24 @@ export function Markdown({ content, className = "" }: { content: string; classNa
       continue;
     }
 
+    // Horizontal rule --- or ***
+    if (/^[-*]{3,}$/.test(line.trim())) {
+      elements.push(<hr key={i} className="border-gray-200 my-2" />);
+      i++;
+      continue;
+    }
+
+    // # Heading (h1)
+    if (line.startsWith("# ")) {
+      elements.push(
+        <p key={i} className="font-bold text-gray-900 mt-3 mb-1 text-lg">
+          {renderInline(line.slice(2))}
+        </p>
+      );
+      i++;
+      continue;
+    }
+
     // ## Heading
     if (line.startsWith("## ")) {
       elements.push(
