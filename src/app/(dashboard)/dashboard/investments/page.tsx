@@ -336,7 +336,7 @@ const AI_STARTERS = [
 export default function InvestmentsPage() {
   const [data, setData] = useState<MarketData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"market" | "portfolio" | "analysis" | "forecast" | "ai" | "platforms" | "calculator">("market");
+  const [tab, setTab] = useState<"market" | "portfolio" | "analysis" | "forecast" | "ai" | "platforms">("market");
 
   // Portfolio state
   const [investments, setInvestments] = useState<Investment[]>([]);
@@ -599,7 +599,6 @@ export default function InvestmentsPage() {
             { key: "forecast",   label: "📈 Прогноз" },
             { key: "ai",         label: "💬 AI Радник" },
             { key: "platforms",  label: "🏦 Платформи" },
-            { key: "calculator", label: "🧮 Калькулятор" },
           ] as const
         ).map((t) => (
           <button
@@ -1490,60 +1489,6 @@ export default function InvestmentsPage() {
       )}
 
       {/* ── Calculator Tab ── */}
-      {tab === "calculator" && (
-        <div className="space-y-4">
-          <SavingsCalculator />
-
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              {
-                emoji: "🏦",
-                name: "ОВДП Monobank",
-                rate: "~16% річних",
-                desc: "Державні облігації в гривні, надійно",
-                color: "bg-green-50 border-green-200",
-              },
-              {
-                emoji: "📊",
-                name: "ETF S&P 500",
-                rate: "~10% річних (USD)",
-                desc: "500 найбільших компаній США",
-                color: "bg-blue-50 border-blue-200",
-              },
-              {
-                emoji: "₿",
-                name: "Bitcoin (HODLing)",
-                rate: "Волатильний",
-                desc: "Більший ризик, більший потенціал",
-                color: "bg-yellow-50 border-yellow-200",
-              },
-              {
-                emoji: "🏠",
-                name: "Нерухомість",
-                rate: "8-12% річних",
-                desc: "Оренда + ріст вартості, UAH/USD",
-                color: "bg-purple-50 border-purple-200",
-              },
-            ].map((item) => (
-              <div
-                key={item.name}
-                className={`rounded-2xl p-4 border ${item.color} flex items-start gap-3`}
-              >
-                <span className="text-2xl">{item.emoji}</span>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">{item.name}</p>
-                  <p className="text-xs font-medium text-gray-500 mt-0.5">{item.rate}</p>
-                  <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 text-sm text-amber-800">
-            ⚠️ <strong>Важливо:</strong> Це не фінансова порада. Минула дохідність не гарантує майбутньої. Диверсифікуй і інвестуй тільки ті гроші, які можеш дозволити собі втратити.
-          </div>
-        </div>
-      )}
     </div>
   );
 }
