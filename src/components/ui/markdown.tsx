@@ -13,6 +13,21 @@ function renderInline(text: string): React.ReactNode[] {
   });
 }
 
+function parseTableRow(line: string): string[] {
+  return line
+    .split("|")
+    .slice(1, -1)
+    .map((cell) => cell.trim());
+}
+
+function isTableSeparator(line: string): boolean {
+  return /^\|[\s\-|:]+\|$/.test(line.trim());
+}
+
+function isTableRow(line: string): boolean {
+  return line.trim().startsWith("|") && line.trim().endsWith("|");
+}
+
 export function Markdown({ content, className = "" }: { content: string; className?: string }) {
   const lines = content.split("\n");
   const elements: React.ReactNode[] = [];
@@ -23,6 +38,49 @@ export function Markdown({ content, className = "" }: { content: string; classNa
 
     if (!line.trim()) {
       i++;
+      continue;
+    }
+
+    // Table
+    if (isTableRow(line)) {
+      const headers = parseTableRow(line);
+      i++;
+      // skip separator row
+      if (i < lines.length && isTableSeparator(lines[i])) i++;
+      const rows: string[][] = [];
+      while (i < lines.length && isTableRow(lines[i])) {
+        rows.push(parseTableRow(lines[i]));
+        i++;
+      }
+      elements.push(
+        <div key={`table-${i}`} className="overflow-x-auto my-2 rounded-xl border border-gray-100">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-50">
+                {headers.map((h, hi) => (
+                  <th
+                    key={hi}
+                    className="px-4 py-2.5 text-left font-semibold text-gray-700 border-b border-gray-100 whitespace-nowrap"
+                  >
+                    {renderInline(h)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 1 ? "bg-gray-50/50" : ""}>
+                  {row.map((cell, ci) => (
+                    <td key={ci} className="px-4 py-2 text-gray-700 border-b border-gray-50 last:border-0">
+                      {renderInline(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
       continue;
     }
 
@@ -48,13 +106,13 @@ export function Markdown({ content, className = "" }: { content: string; classNa
       continue;
     }
 
-    // Bullet list (-, •, *)
+    // Bullet list (-, •)
     if (/^[-•]\s/.test(line)) {
       const items: React.ReactNode[] = [];
       while (i < lines.length && /^[-•]\s/.test(lines[i])) {
         items.push(
           <li key={i} className="flex gap-2">
-            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-current shrink-0 opacity-50" />
+            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-current shrink-0 opacity-40" />
             <span>{renderInline(lines[i].replace(/^[-•]\s/, ""))}</span>
           </li>
         );
