@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import {
   XAxis,
   YAxis,
@@ -284,10 +285,71 @@ function SavingsCalculator() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+// ─── Portfolio types ──────────────────────────────────────────────────────────
+
+interface Investment {
+  id: string;
+  asset: string;
+  platform: string;
+  ticker: string | null;
+  amount: number;
+  quantity: number | null;
+  notes: string | null;
+  date: string;
+}
+
+const PLATFORMS_LIST = [
+  "Monobank", "Interactive Brokers", "Binance", "Revolut",
+  "ПриватБрокер", "Freedom Finance", "Інше",
+];
+
+const ASSET_SUGGESTIONS = [
+  { label: "Bitcoin", ticker: "bitcoin" },
+  { label: "Ethereum", ticker: "ethereum" },
+  { label: "Solana", ticker: "solana" },
+  { label: "Apple (AAPL)", ticker: "AAPL" },
+  { label: "NVIDIA (NVDA)", ticker: "NVDA" },
+  { label: "ОВДП", ticker: null },
+  { label: "Депозит", ticker: null },
+  { label: "Нерухомість", ticker: null },
+];
+
+// ─── AI Chat types ────────────────────────────────────────────────────────────
+
+interface AiMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  error?: string;
+}
+
+const AI_STARTERS = [
+  "Що порадиш вкласти при вільних 10 000 грн?",
+  "Чи варто зараз купувати Bitcoin?",
+  "Як диверсифікувати мій портфель?",
+  "Що таке ETF і як почати інвестувати?",
+];
+
 export default function InvestmentsPage() {
   const [data, setData] = useState<MarketData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"market" | "platforms" | "calculator">("market");
+  const [tab, setTab] = useState<"market" | "portfolio" | "ai" | "platforms" | "calculator">("market");
+
+  // Portfolio state
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [invLoading, setInvLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [invForm, setInvForm] = useState({
+    asset: "", platform: PLATFORMS_LIST[0], ticker: "", amount: "", quantity: "", notes: "",
+    date: new Date().toISOString().slice(0, 10),
+  });
+  const [invSubmitting, setInvSubmitting] = useState(false);
+
+  // AI chat state
+  const [aiMessages, setAiMessages] = useState<AiMessage[]>([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const aiBottomRef = useRef<HTMLDivElement>(null);
 
   // Chart state
   const [selectedAsset, setSelectedAsset] = useState<ChartAsset>(CHART_ASSETS[0]);
@@ -321,9 +383,97 @@ export default function InvestmentsPage() {
     loadChart(selectedAsset, chartDays);
   }, [selectedAsset, chartDays, loadChart]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+
+  // Portfolio fetch
+  const loadInvestments = useCallback(() => {
+    setInvLoading(true);
+    fetch("/api/investments")
+      .then((r) => r.json())
+      .then((d) => { setInvestments(Array.isArray(d) ? d : []); setInvLoading(false); })
+      .catch(() => setInvLoading(false));
+  }, []);
+
+  useEffect(() => { loadInvestments(); }, [loadInvestments]);
+
+  // AI scroll
+  useEffect(() => { aiBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMessages]);
+
+  async function addInvestment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!invForm.asset || !invForm.amount) { toast.error("Заповни актив і суму"); return; }
+    setInvSubmitting(true);
+    try {
+      const res = await fetch("/api/investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...invForm, ticker: invForm.ticker || null, quantity: invForm.quantity || null }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Інвестицію додано! 📈");
+      setShowAddForm(false);
+      setInvForm({ asset: "", platform: PLATFORMS_LIST[0], ticker: "", amount: "", quantity: "", notes: "", date: new Date().toISOString().slice(0, 10) });
+      loadInvestments();
+    } catch { toast.error("Помилка збереження 😬"); }
+    finally { setInvSubmitting(false); }
+  }
+
+  async function deleteInvestment(id: string) {
+    try {
+      await fetch(`/api/investments/${id}`, { method: "DELETE" });
+      toast.success("Видалено 🗑️");
+      setInvestments((prev) => prev.filter((i) => i.id !== id));
+    } catch { toast.error("Помилка видалення"); }
+  }
+
+  // Current price from loaded market data
+  function getCurrentPrice(ticker: string | null): number | null {
+    if (!ticker || !data) return null;
+    const cryptoMap: Record<string, number | undefined> = {
+      bitcoin: data.crypto?.bitcoin.usd,
+      ethereum: data.crypto?.ethereum.usd,
+      solana: data.crypto?.solana.usd,
+    };
+    if (cryptoMap[ticker] !== undefined) return cryptoMap[ticker] ?? null;
+    const stock = data.stocks.find((s) => s.symbol === ticker);
+    return stock?.price ?? null;
+  }
+
+  async function sendAiMessage(text: string) {
+    if (!text.trim() || aiStreaming) return;
+    const userMsg: AiMessage = { id: crypto.randomUUID(), role: "user", content: text };
+    const aiMsg: AiMessage = { id: crypto.randomUUID(), role: "assistant", content: "" };
+    const history = [...aiMessages, userMsg];
+    setAiMessages([...history, aiMsg]);
+    setAiInput("");
+    setAiStreaming(true);
+    try {
+      const marketSnapshot = data?.crypto ? {
+        btc: data.crypto.bitcoin.usd,
+        eth: data.crypto.ethereum.usd,
+        sol: data.crypto.solana.usd,
+        usd: data.forex?.USD,
+        eur: data.forex?.EUR,
+      } : null;
+      const res = await fetch("/api/ai/invest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), marketSnapshot }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+        setAiMessages((prev) => prev.map((m) => (m.id === aiMsg.id ? { ...m, content: acc } : m)));
+      }
+    } catch (err) {
+      setAiMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, error: `⚠️ ${err}` } : m));
+    } finally { setAiStreaming(false); }
+  }
 
   const updatedAt = data?.updatedAt
     ? new Date(data.updatedAt).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })
@@ -353,11 +503,13 @@ export default function InvestmentsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 bg-white rounded-2xl p-1.5 border border-gray-100 shadow-sm w-fit">
+      <div className="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 border border-gray-100 shadow-sm w-fit">
         {(
           [
-            { key: "market", label: "🌍 Ринок" },
-            { key: "platforms", label: "🏦 Платформи" },
+            { key: "market",     label: "🌍 Ринок" },
+            { key: "portfolio",  label: "💼 Портфель" },
+            { key: "ai",         label: "🤖 AI Радник" },
+            { key: "platforms",  label: "🏦 Платформи" },
             { key: "calculator", label: "🧮 Калькулятор" },
           ] as const
         ).map((t) => (
@@ -679,6 +831,273 @@ export default function InvestmentsPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Portfolio Tab ── */}
+      {tab === "portfolio" && (
+        <div className="space-y-5">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Відстежуй свої вкладення в одному місці</p>
+              {investments.length > 0 && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Всього вкладено:{" "}
+                  <span className="font-semibold text-gray-700">
+                    {investments.reduce((s, i) => s + i.amount, 0).toLocaleString("uk-UA", {
+                      style: "currency", currency: "UAH", maximumFractionDigits: 0,
+                    })}
+                  </span>
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setShowAddForm((v) => !v)}
+              className="px-4 py-2 bg-gradient-to-r from-violet-500 to-pink-500 text-white text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-sm"
+            >
+              {showAddForm ? "✕ Закрити" : "+ Додати"}
+            </button>
+          </div>
+
+          {/* Add form */}
+          {showAddForm && (
+            <form onSubmit={addInvestment} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
+              <h3 className="font-semibold text-gray-800 text-sm">Нова інвестиція</h3>
+
+              {/* Asset quick-pick */}
+              <div>
+                <label className="text-xs text-gray-500 mb-2 block">Актив</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {ASSET_SUGGESTIONS.map((s) => (
+                    <button
+                      key={s.label} type="button"
+                      onClick={() => setInvForm((f) => ({ ...f, asset: s.label, ticker: s.ticker ?? "" }))}
+                      className={`px-3 py-1 rounded-xl text-xs font-medium border transition-all ${
+                        invForm.asset === s.label
+                          ? "bg-violet-100 border-violet-300 text-violet-700"
+                          : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  placeholder="або введи вручну"
+                  value={invForm.asset}
+                  onChange={(e) => setInvForm((f) => ({ ...f, asset: e.target.value }))}
+                  className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1.5 block">Платформа</label>
+                  <select
+                    value={invForm.platform}
+                    onChange={(e) => setInvForm((f) => ({ ...f, platform: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                  >
+                    {PLATFORMS_LIST.map((p) => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1.5 block">Дата</label>
+                  <input type="date" value={invForm.date}
+                    onChange={(e) => setInvForm((f) => ({ ...f, date: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1.5 block">Вкладено (грн)</label>
+                  <input type="number" placeholder="10000" value={invForm.amount}
+                    onChange={(e) => setInvForm((f) => ({ ...f, amount: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1.5 block">Кількість (необов&apos;язково)</label>
+                  <input type="number" placeholder="0.5" step="any" value={invForm.quantity}
+                    onChange={(e) => setInvForm((f) => ({ ...f, quantity: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">Нотатка</label>
+                <input placeholder="Наприклад: куплено на просадці" value={invForm.notes}
+                  onChange={(e) => setInvForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-gray-50"
+                />
+              </div>
+
+              <button type="submit" disabled={invSubmitting}
+                className="w-full py-2.5 bg-gradient-to-r from-violet-500 to-pink-500 text-white font-semibold rounded-xl text-sm hover:opacity-90 disabled:opacity-50"
+              >
+                {invSubmitting ? "Зберігаю..." : "✓ Додати інвестицію"}
+              </button>
+            </form>
+          )}
+
+          {/* Investments list */}
+          {invLoading ? (
+            <div className="flex justify-center py-12"><span className="text-3xl animate-bounce">📊</span></div>
+          ) : investments.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-gray-400 gap-3 bg-white rounded-2xl border border-gray-100">
+              <span className="text-4xl">💼</span>
+              <p className="text-sm font-medium">Портфель порожній</p>
+              <p className="text-xs">Натисни «+ Додати» щоб записати першу інвестицію</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Summary by platform */}
+              {(() => {
+                const byPlatform: Record<string, number> = {};
+                for (const i of investments) byPlatform[i.platform] = (byPlatform[i.platform] ?? 0) + i.amount;
+                return (
+                  <div className="p-4 border-b border-gray-50 flex flex-wrap gap-3">
+                    {Object.entries(byPlatform).map(([plat, total]) => (
+                      <div key={plat} className="bg-gray-50 rounded-xl px-3 py-1.5 text-xs">
+                        <span className="text-gray-500">{plat}: </span>
+                        <span className="font-semibold text-gray-800">
+                          {total.toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {investments.map((inv) => {
+                const currentPrice = getCurrentPrice(inv.ticker);
+                const currentValue = currentPrice && inv.quantity ? currentPrice * inv.quantity * (data?.forex?.USD ?? 41) : null;
+                const pnl = currentValue !== null ? currentValue - inv.amount : null;
+                const pnlPct = pnl !== null ? (pnl / inv.amount) * 100 : null;
+                return (
+                  <div key={inv.id} className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 group transition-colors">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-pink-100 flex items-center justify-center text-lg shrink-0">
+                      {ASSET_SUGGESTIONS.find((a) => a.label === inv.asset)
+                        ? CHART_ASSETS.find((c) => c.id === inv.ticker)?.emoji ?? "📊"
+                        : "📊"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-800">{inv.asset}</p>
+                        <span className="text-xs text-gray-400 bg-gray-100 rounded-lg px-2 py-0.5">{inv.platform}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <p className="text-xs text-gray-500">
+                          {inv.amount.toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 })}
+                          {inv.quantity ? ` · ${inv.quantity} шт.` : ""}
+                        </p>
+                        {inv.notes && <p className="text-xs text-gray-400 truncate">{inv.notes}</p>}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {currentValue !== null && pnl !== null && pnlPct !== null ? (
+                        <>
+                          <p className="text-sm font-semibold text-gray-800">
+                            {currentValue.toLocaleString("uk-UA", { style: "currency", currency: "UAH", maximumFractionDigits: 0 })}
+                          </p>
+                          <p className={`text-xs font-medium ${pnl >= 0 ? "text-green-600" : "text-red-500"}`}>
+                            {pnl >= 0 ? "+" : ""}{pnl.toLocaleString("uk-UA", { maximumFractionDigits: 0 })} ({pnlPct.toFixed(1)}%)
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-400">{new Date(inv.date).toLocaleDateString("uk-UA")}</p>
+                      )}
+                    </div>
+                    <button onClick={() => deleteInvestment(inv.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-xl ml-1"
+                    >×</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── AI Advisor Tab ── */}
+      {tab === "ai" && (
+        <div className="flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style={{ height: "calc(100vh - 280px)" }}>
+          {/* Header */}
+          <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-lg">🤖</div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">Інвест — AI Радник</p>
+              <p className="text-xs text-gray-400">Знає твій портфель і поточні ціни • Говорить українською</p>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {aiMessages.length === 0 && (
+              <div className="flex flex-col items-center gap-5 py-6">
+                <span className="text-5xl">🤖</span>
+                <div className="text-center">
+                  <p className="font-semibold text-gray-800">Привіт! Я Інвест 👋</p>
+                  <p className="text-sm text-gray-400 mt-1">Задай питання про інвестиції — я знаю твій портфель і поточні ринкові ціни</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
+                  {AI_STARTERS.map((s) => (
+                    <button key={s} onClick={() => sendAiMessage(s)}
+                      className="text-left px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100 text-xs text-gray-600 hover:bg-violet-50 hover:border-violet-200 transition-all"
+                    >{s}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {aiMessages.map((m) => (
+              <div key={m.id} className={`flex gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                {m.role === "assistant" && (
+                  <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-sm shrink-0 mt-0.5">🤖</div>
+                )}
+                <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                  m.role === "user"
+                    ? "bg-gradient-to-r from-violet-500 to-pink-500 text-white rounded-tr-sm"
+                    : m.error
+                    ? "bg-red-50 border border-red-200 text-red-600 rounded-tl-sm"
+                    : "bg-gray-50 border border-gray-100 text-gray-800 rounded-tl-sm"
+                }`}>
+                  {m.error ? m.error : m.content ? m.content : (
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:0ms]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div ref={aiBottomRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-3 border-t border-gray-100">
+            <form onSubmit={(e) => { e.preventDefault(); sendAiMessage(aiInput); }} className="flex gap-2">
+              <input value={aiInput} onChange={(e) => setAiInput(e.target.value)}
+                placeholder="Запитай про інвестиції..."
+                disabled={aiStreaming}
+                className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 focus:bg-white transition-colors disabled:opacity-50 placeholder:text-gray-400"
+              />
+              <button type="submit" disabled={aiStreaming || !aiInput.trim()}
+                className="rounded-xl bg-gradient-to-r from-violet-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40 transition-all"
+              >
+                {aiStreaming ? (
+                  <span className="flex gap-1 items-center">
+                    <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1 h-1 rounded-full bg-white animate-bounce [animation-delay:300ms]" />
+                  </span>
+                ) : "↑"}
+              </button>
+            </form>
           </div>
         </div>
       )}

@@ -23,6 +23,7 @@ model User {
   sessions     Session[]
   progresses   Progress[]
   transactions Transaction[]
+  investments  Investment[]
 }
 
 
@@ -78,6 +79,25 @@ model Transaction {
 
   @@index([userId])
   @@index([userId, date])
+}
+
+// ─── Портфель інвестицій ──────────────────────────────────────────
+
+model Investment {
+  id        String   @id @default(cuid())
+  userId    String
+  asset     String
+  platform  String
+  ticker    String?
+  amount    Float
+  quantity  Float?
+  notes     String?
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ─── Прогрес користувача ───────────────────────────────────────────
